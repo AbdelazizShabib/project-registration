@@ -96,25 +96,38 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
       const idsToDelete = existingMemberIds.filter(id => !validIds.includes(id));
 
       if (idsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
+        const { data, error: deleteError } = await supabase
           .from('team_members')
           .delete()
-          .in('id', idsToDelete);
+          .in('id', idsToDelete)
+          .select();
         if (deleteError) throw deleteError;
+        if (!data || data.length === 0) {
+           throw new Error(`Failed to delete removed members. The database blocked the delete (likely due to missing RLS DELETE policy on team_members table).`);
+        }
       }
 
       for (const m of validMembers) {
         if (m.id) {
-          const { error: updateError } = await supabase
+          const { data, error: updateError } = await supabase
             .from('team_members')
             .update({ member_name: m.name, registration_number: m.registration_number })
-            .eq('id', m.id);
+            .eq('id', m.id)
+            .select();
+            
           if (updateError) throw updateError;
+          if (!data || data.length === 0) {
+            throw new Error(`Failed to update ${m.name}. The database blocked the update (likely due to missing RLS UPDATE policy on team_members table).`);
+          }
         } else {
-          const { error: insertError } = await supabase
+          const { data, error: insertError } = await supabase
             .from('team_members')
-            .insert({ team_id: team.id, member_name: m.name, registration_number: m.registration_number });
+            .insert({ team_id: team.id, member_name: m.name, registration_number: m.registration_number })
+            .select();
           if (insertError) throw insertError;
+          if (!data || data.length === 0) {
+             throw new Error(`Failed to insert new member ${m.name}. The database blocked the insert.`);
+          }
         }
       }
 
