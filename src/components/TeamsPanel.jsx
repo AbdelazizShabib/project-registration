@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Search, Filter, Trash2, Plus, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Trash2, Plus, ArrowUpDown, Edit2 } from 'lucide-react';
 import ManualRegister from './ManualRegister';
+import EditTeamModal from './EditTeamModal';
+import ErrorBoundary from './ErrorBoundary';
 
 export default function TeamsPanel() {
   const [teams, setTeams] = useState([]);
@@ -12,10 +14,24 @@ export default function TeamsPanel() {
   const [sortConfig, setSortConfig] = useState({ key: 'team_number', direction: 'asc' });
   
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [config, setConfig] = useState(null);
 
   useEffect(() => {
     fetchData();
+    fetchConfig();
   }, []);
+
+  const fetchConfig = async () => {
+    try {
+      const { data, error } = await supabase.from('config').select('*').eq('id', 1).single();
+      if (!error && data) {
+        setConfig(data);
+      }
+    } catch (err) {
+      console.error('Error fetching config in TeamsPanel:', err);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -224,13 +240,22 @@ export default function TeamsPanel() {
                       {new Date(team.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleDelete(team.id, team.team_number)}
-                        className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-md hover:bg-red-100 transition-colors"
-                        title="Delete Team"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => setEditingTeam(team)}
+                          className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 p-2 rounded-md hover:bg-indigo-100 transition-colors"
+                          title="Edit Team"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(team.id, team.team_number)}
+                          className="text-red-600 hover:text-red-900 bg-red-50 p-2 rounded-md hover:bg-red-100 transition-colors"
+                          title="Delete Team"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -240,11 +265,25 @@ export default function TeamsPanel() {
         </div>
       </div>
 
-      <ManualRegister 
-        isOpen={isManualModalOpen} 
-        onClose={() => setIsManualModalOpen(false)} 
-        onSuccess={() => fetchData()} 
-      />
+      <ErrorBoundary>
+        <ManualRegister 
+          isOpen={isManualModalOpen} 
+          onClose={() => setIsManualModalOpen(false)} 
+          onSuccess={() => fetchData()} 
+        />
+      </ErrorBoundary>
+
+      {editingTeam && config && (
+        <ErrorBoundary>
+          <EditTeamModal 
+            isOpen={!!editingTeam}
+            onClose={() => setEditingTeam(null)}
+            onSuccess={() => fetchData()}
+            team={editingTeam}
+            config={config}
+          />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
