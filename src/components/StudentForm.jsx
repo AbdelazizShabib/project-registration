@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import SuccessScreen from './SuccessScreen';
 
-export default function StudentForm({ config }) {
+export default function StudentForm({ config, isAdmin = false }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -122,8 +122,15 @@ export default function StudentForm({ config }) {
     }
 
     setSubmitting(true);
+    let toggled = false;
     
     try {
+      if (isAdmin && !config.registration_open) {
+        const { error: configError } = await supabase.from('config').update({ registration_open: true }).eq('id', 1);
+        if (configError) throw new Error('Failed to temporarily open registration for admin override.');
+        toggled = true;
+      }
+
       const { data, error: rpcError } = await supabase.rpc('register_team', {
         p_project_id: selectedProjectId,
         p_members: validMembers
@@ -146,6 +153,9 @@ export default function StudentForm({ config }) {
       console.error('Registration error:', err);
       setError(err.message || 'An unexpected error occurred during registration.');
     } finally {
+      if (toggled) {
+        await supabase.from('config').update({ registration_open: false }).eq('id', 1);
+      }
       setSubmitting(false);
     }
   };

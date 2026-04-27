@@ -70,8 +70,15 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
     }
 
     setLoading(true);
+    let toggled = false;
     
     try {
+      if (!config.registration_open) {
+        const { error: configError } = await supabase.from('config').update({ registration_open: true }).eq('id', 1);
+        if (configError) throw new Error('Failed to temporarily open registration for admin override.');
+        toggled = true;
+      }
+
       const regs = validMembers.map(m => m.registration_number);
       if (regs.length > 0) {
         const { data: existingRegs, error: checkError } = await supabase
@@ -87,6 +94,7 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
           setError(`Registration number ${duplicateReg} is already registered in another team.`);
           setDuplicateField(duplicateReg);
           setLoading(false);
+          if (toggled) await supabase.from('config').update({ registration_open: false }).eq('id', 1);
           return;
         }
       }
@@ -137,6 +145,9 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
       console.error('Error updating team:', err);
       setError(err.message || 'An unexpected error occurred during update.');
     } finally {
+      if (toggled) {
+        await supabase.from('config').update({ registration_open: false }).eq('id', 1);
+      }
       setLoading(false);
     }
   };

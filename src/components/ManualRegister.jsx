@@ -52,7 +52,7 @@ export default function ManualRegister({ isOpen, onClose, onSuccess }) {
               ) : error ? (
                 <div className="text-center text-red-600 py-10">{error}</div>
               ) : (
-                <StudentForm config={config} />
+                <StudentForm config={config} isAdmin={true} />
               )}
             </div>
             <div className="bg-white px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-slate-200">
