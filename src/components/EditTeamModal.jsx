@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config }) {
   const [members, setMembers] = useState([]);
@@ -8,15 +8,18 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
   const [error, setError] = useState(null);
   const [duplicateField, setDuplicateField] = useState(null);
 
+  const minMembers = config
+    ? (config.allow_incomplete_teams ? (config.min_members_per_team ?? 1) : config.members_per_team)
+    : 1;
+  const maxMembers = config?.members_per_team ?? 1;
+
   useEffect(() => {
     if (isOpen && team && config) {
-      const initialMembers = Array.from({ length: config.members_per_team }).map((_, index) => {
-        const existing = team.members[index];
-        if (existing) {
-          return { id: existing.id, name: existing.member_name, registration_number: existing.registration_number };
-        }
-        return { name: '', registration_number: '' };
-      });
+      const initialMembers = team.members.map(existing => ({
+        id: existing.id,
+        name: existing.member_name,
+        registration_number: existing.registration_number,
+      }));
       setMembers(initialMembers);
       setError(null);
       setDuplicateField(null);
@@ -27,46 +30,51 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
     const newMembers = [...members];
     newMembers[index][field] = value;
     setMembers(newMembers);
-    
     if (duplicateField === newMembers[index].registration_number) {
       setDuplicateField(null);
     }
+  };
+
+  const handleRemoveMember = (index) => {
+    setMembers(prev => prev.filter((_, i) => i !== index));
+    setError(null);
+  };
+
+  const handleAddMember = () => {
+    setMembers(prev => [...prev, { name: '', registration_number: '' }]);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setDuplicateField(null);
-    
+
+    if (members.length < minMembers) {
+      setError(`A team must have at least ${minMembers} member${minMembers !== 1 ? 's' : ''}.`);
+      return;
+    }
+
     let validMembers = [];
     let localDuplicateCheck = new Set();
-    
-    for (let i = 0; i < config.members_per_team; i++) {
-      const isRequired = !config.allow_incomplete_teams || i < config.min_members_per_team;
+
+    for (let i = 0; i < members.length; i++) {
       const mem = members[i];
       const nameTrimmed = mem.name.trim();
       const regTrimmed = mem.registration_number.trim();
-      
-      if (isRequired && (!nameTrimmed || !regTrimmed)) {
-        setError(`Please fill in all required fields for Member ${i + 1}.`);
+
+      if (!nameTrimmed || !regTrimmed) {
+        setError(`Please fill in both Name and Registration Number for Member ${i + 1}.`);
         return;
       }
-      
-      if (nameTrimmed || regTrimmed) {
-        if (!nameTrimmed || !regTrimmed) {
-           setError(`Please fill in both Name and Registration Number for Member ${i + 1}, or leave both empty if optional.`);
-           return;
-        }
-        
-        if (localDuplicateCheck.has(regTrimmed)) {
-          setError(`Duplicate registration number in form: ${regTrimmed}`);
-          setDuplicateField(regTrimmed);
-          return;
-        }
-        localDuplicateCheck.add(regTrimmed);
-        
-        validMembers.push({ id: mem.id, name: nameTrimmed, registration_number: regTrimmed });
+
+      if (localDuplicateCheck.has(regTrimmed)) {
+        setError(`Duplicate registration number in form: ${regTrimmed}`);
+        setDuplicateField(regTrimmed);
+        return;
       }
+      localDuplicateCheck.add(regTrimmed);
+
+      validMembers.push({ id: mem.id, name: nameTrimmed, registration_number: regTrimmed });
     }
 
     setLoading(true);
@@ -193,25 +201,29 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
                   </h3>
                   
                   {members.map((member, index) => {
-                    const isRequired = !config.allow_incomplete_teams || index < config.min_members_per_team;
-                    
+                    const canRemove = members.length > minMembers;
+
                     return (
                       <div key={index} className="bg-slate-50 p-4 rounded-md border border-slate-200">
                         <div className="flex justify-between items-center mb-4">
                           <h4 className="text-sm font-semibold text-slate-700">
                             Member {index + 1}
                           </h4>
-                          {!isRequired && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                              Optional
-                            </span>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMember(index)}
+                            disabled={!canRemove}
+                            title={canRemove ? 'Remove member' : `Minimum ${minMembers} member${minMembers !== 1 ? 's' : ''} required`}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-red-600 hover:bg-red-50 disabled:text-slate-300 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" /> Remove
+                          </button>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-2 sm:gap-x-4">
                           <div>
                             <label htmlFor={`name-${index}`} className="block text-sm font-medium text-slate-700">
-                              Full Name {isRequired && <span className="text-red-500">*</span>}
+                              Full Name <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                               <input
@@ -220,14 +232,13 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
                                 value={member.name}
                                 onChange={(e) => handleMemberChange(index, 'name', e.target.value)}
                                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-slate-300 rounded-md py-2 px-3 border"
-                                required={isRequired}
                               />
                             </div>
                           </div>
-                          
+
                           <div>
                             <label htmlFor={`reg-${index}`} className="block text-sm font-medium text-slate-700">
-                              Registration Number {isRequired && <span className="text-red-500">*</span>}
+                              Registration Number <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                               <input
@@ -236,11 +247,10 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
                                 value={member.registration_number}
                                 onChange={(e) => handleMemberChange(index, 'registration_number', e.target.value)}
                                 className={`shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm rounded-md py-2 px-3 border ${
-                                  duplicateField === member.registration_number && member.registration_number !== '' 
-                                    ? 'border-red-300 ring-red-500 focus:border-red-500 bg-red-50' 
+                                  duplicateField === member.registration_number && member.registration_number !== ''
+                                    ? 'border-red-300 ring-red-500 focus:border-red-500 bg-red-50'
                                     : 'border-slate-300'
                                 }`}
-                                required={isRequired}
                               />
                             </div>
                             {duplicateField === member.registration_number && member.registration_number !== '' && (
@@ -251,6 +261,16 @@ export default function EditTeamModal({ isOpen, onClose, onSuccess, team, config
                       </div>
                     );
                   })}
+
+                  {members.length < maxMembers && (
+                    <button
+                      type="button"
+                      onClick={handleAddMember}
+                      className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-slate-300 rounded-md text-sm font-medium text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Add Member
+                    </button>
+                  )}
                 </div>
 
                 <div className="pt-5 flex justify-end gap-3">
