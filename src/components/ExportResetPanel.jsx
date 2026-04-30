@@ -114,6 +114,9 @@ export default function ExportResetPanel() {
       });
 
       console.log('DEBUG gradesMap:', gradesMap);
+      const matched = members.filter(m => m.id in gradesMap && gradesMap[m.id] !== '');
+      console.log('DEBUG members with non-empty grades:', matched.map(m => ({ name: m.member_name, id: m.id, grade: gradesMap[m.id] })));
+      console.log('DEBUG CSV preview:', (() => { let s = 'Student Name,Registration Number,Grade\n'; members.slice(0, 5).forEach(m => { s += `${m.member_name},${m.registration_number},${gradesMap[m.id] ?? ''}\n`; }); return s; })());
 
       let csvContent = 'Student Name,Registration Number,Grade\n';
       members.forEach(member => {
