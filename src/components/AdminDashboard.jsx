@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Settings, FolderKanban, Users, Download, LogOut } from 'lucide-react';
+import { Settings, FolderKanban, Users, Download, LogOut, GraduationCap } from 'lucide-react';
 import ConfigPanel from './ConfigPanel';
 import ProjectsPanel from './ProjectsPanel';
 import TeamsPanel from './TeamsPanel';
 import ExportResetPanel from './ExportResetPanel';
+import GradingPanel from './GradingPanel';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('config');
@@ -17,6 +18,7 @@ export default function AdminDashboard() {
     { id: 'config', name: 'Course Config', icon: Settings },
     { id: 'projects', name: 'Manage Projects', icon: FolderKanban },
     { id: 'teams', name: 'Registered Teams', icon: Users },
+    { id: 'grading', name: 'Grade Projects', icon: GraduationCap },
     { id: 'export', name: 'Export & Reset', icon: Download },
   ];
 
@@ -68,6 +70,7 @@ export default function AdminDashboard() {
             {activeTab === 'config' && <ConfigPanel />}
             {activeTab === 'projects' && <ProjectsPanel />}
             {activeTab === 'teams' && <TeamsPanel />}
+            {activeTab === 'grading' && <GradingPanel />}
             {activeTab === 'export' && <ExportResetPanel />}
           </div>
         </div>

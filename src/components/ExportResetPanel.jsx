@@ -11,6 +11,7 @@ export default function ExportResetPanel() {
   const [passMessage, setPassMessage] = useState({ type: '', text: '' });
   
   const [exportLoading, setExportLoading] = useState(false);
+  const [gradesExportLoading, setGradesExportLoading] = useState(false);
   
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState({ type: '', text: '' });
@@ -85,6 +86,58 @@ export default function ExportResetPanel() {
       alert('Failed to export data.');
     } finally {
       setExportLoading(false);
+    }
+  };
+
+  const handleExportGradesCSV = async () => {
+    setGradesExportLoading(true);
+    try {
+      const { data: members, error: membersError } = await supabase
+        .from('team_members')
+        .select('id, member_name, registration_number')
+        .order('registration_number');
+
+      if (membersError) throw membersError;
+
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('grades')
+        .select('team_member_id, grade');
+
+      if (gradesError) throw gradesError;
+
+      console.log('DEBUG grades rows:', gradesData);
+      console.log('DEBUG first member id:', members?.[0]?.id);
+
+      const gradesMap = {};
+      (gradesData || []).forEach(g => {
+        gradesMap[g.team_member_id] = g.grade ?? '';
+      });
+
+      console.log('DEBUG gradesMap:', gradesMap);
+
+      let csvContent = 'Student Name,Registration Number,Grade\n';
+      members.forEach(member => {
+        const grade = gradesMap[member.id] ?? '';
+        csvContent +=
+          `"${member.member_name.replace(/"/g, '""')}",` +
+          `"${member.registration_number.replace(/"/g, '""')}",` +
+          `"${String(grade).replace(/"/g, '""')}"\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `grades_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Grades export error:', err);
+      alert('Failed to export grades.');
+    } finally {
+      setGradesExportLoading(false);
     }
   };
 
@@ -187,6 +240,27 @@ export default function ExportResetPanel() {
             className="inline-flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm disabled:opacity-50"
           >
             {exportLoading ? 'Exporting...' : 'Download CSV'}
+          </button>
+        </div>
+      </div>
+
+      {/* Grades Export Section */}
+      <div className="bg-white shadow rounded-lg px-4 py-5 sm:p-6 border-l-4 border-emerald-500">
+        <h3 className="text-lg leading-6 font-medium text-slate-900 flex items-center">
+          <Download className="mr-2 h-5 w-5 text-emerald-500" />
+          Export Grades
+        </h3>
+        <div className="mt-2 max-w-xl text-sm text-slate-500">
+          <p>Download grades for all students as CSV. Columns: Student Name, Registration Number, Grade.</p>
+        </div>
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={handleExportGradesCSV}
+            disabled={gradesExportLoading}
+            className="inline-flex items-center justify-center px-4 py-2 border border-transparent font-medium rounded-md text-emerald-700 bg-emerald-100 hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:text-sm disabled:opacity-50"
+          >
+            {gradesExportLoading ? 'Exporting...' : 'Download Grades CSV'}
           </button>
         </div>
       </div>
